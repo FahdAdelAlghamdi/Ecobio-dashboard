@@ -1,0 +1,1002 @@
+<title>EcoBio-Matrix Command Center</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,__ICON__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: control-room console — status header, live gauges, then detail panels in a 2-column grid that stacks on phones.
+   Deliberately single dark look (an operations screen), so no light-theme blocks.
+   Phase 4: the same look, now fed by live Supabase data (Realtime) with a manual switch back to the simulation. */
+:root {
+  color-scheme: dark;
+  --bg: #0B2321;        /* deep reservoir green */
+  --panel: #123532;
+  --line: #1F4743;
+  --fg: #E9F1EE;
+  --muted: #9BB8B1;
+  --ok: #3DBE8B;
+  --warn: #E8A93A;
+  --bad: #F0603C;
+  --blue: #5AB0F0;
+  --display: 'Cairo', 'IBM Plex Sans Arabic', Tahoma, sans-serif;
+  --body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1480px; margin: 0 auto; padding-inline: 20px; padding-block: 18px 40px; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 560px) { .wrap { padding-inline: 16px; } }
+.num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+[hidden] { display: none !important; }
+body[data-mode="live"] .simOnly, body[data-mode="sim"] .liveOnly { display: none !important; }
+
+/* header */
+.head { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.title { font-family: var(--display); font-size: clamp(1.4rem, 3vw, 2.1rem); font-weight: 800; line-height: 1.2; margin: 0; text-wrap: balance; }
+.title span { color: var(--ok); }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand .mark { width: clamp(46px, 5vw, 62px); height: auto; flex: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
+.sub { color: var(--muted); font-size: .9rem; }
+.status { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.clock { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 16px; text-align: center; }
+.clock b { display: block; font-family: var(--mono); font-size: 1.45rem; font-weight: 500; }
+.clock small, .valve small { color: var(--muted); font-size: .78rem; }
+.valve { border-radius: 12px; padding: 8px 16px; font-weight: 700; display: flex; flex-direction: column; justify-content: center; min-width: 150px; }
+.valve.ok { background: rgba(61,190,139,.13); border: 1.5px solid var(--ok); color: var(--ok); }
+.valve.bad { background: rgba(240,96,60,.16); border: 1.5px solid var(--bad); color: var(--bad); animation: pulse 1.2s infinite; }
+.valve.safe { background: rgba(232,169,58,.16); border: 1.5px solid var(--warn); color: var(--warn); }
+.valve.na { background: transparent; border: 1.5px dashed var(--line); color: var(--muted); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(240,96,60,.55); } 70% { box-shadow: 0 0 0 12px rgba(240,96,60,0); } 100% { box-shadow: 0 0 0 0 rgba(240,96,60,0); } }
+@media (max-width: 560px) { .valve { min-width: 0; flex: 1 1 130px; } .clock { flex: 1 1 100%; } }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+.controls .grp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.controls .sep { width: 1px; align-self: stretch; background: var(--line); }
+@media (max-width: 700px) { .controls .sep { display: none; } }
+button, select, input { font: inherit; color: inherit; }
+.btn { background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; cursor: pointer; transition: background .15s, border-color .15s; white-space: nowrap; }
+.btn:hover { background: rgba(255,255,255,.05); border-color: var(--muted); }
+.btn:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+.btn.primary { background: var(--ok); border-color: var(--ok); color: #0B2321; font-weight: 700; }
+.btn.danger { border-color: rgba(240,96,60,.6); }
+.btn.on { border-color: var(--ok); color: var(--ok); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg .btn { border: 0; border-radius: 0; }
+.seg .btn[aria-pressed="true"] { background: var(--ok); color: #0B2321; font-weight: 700; }
+.seg .btn[aria-pressed="true"].sim { background: var(--warn); }
+.conn { font-size: .84rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.conn.ok { color: var(--ok); border-color: rgba(61,190,139,.6); }
+.conn.warn { color: var(--warn); border-color: rgba(232,169,58,.6); }
+.conn.bad { color: var(--bad); border-color: rgba(240,96,60,.6); }
+.lbl { color: var(--muted); font-size: .85rem; }
+select, input[type=text], input[type=number] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+details.settings { width: 100%; }
+details.settings summary { cursor: pointer; color: var(--muted); font-size: .9rem; padding: 2px 0; }
+.setgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.setgrid label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--muted); }
+.setgrid input { width: 100%; min-width: 0; }
+
+/* banners */
+.alert { background: rgba(240,96,60,.12); border: 1px solid var(--bad); border-radius: 12px; padding: 10px 16px; }
+.alert b { color: var(--bad); }
+.alert.ai { background: rgba(90,176,240,.10); border-color: var(--blue); }
+.alert.ai b { color: var(--blue); }
+.alert.warnbar { background: rgba(232,169,58,.10); border-color: var(--warn); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alert.warnbar b { color: var(--warn); }
+
+/* gauges */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-inline-start: 4px solid var(--c, var(--ok)); border-radius: 12px; padding: 10px 14px; min-width: 0; }
+.card .k { color: var(--muted); font-size: .82rem; }
+.card .v { font-size: 1.65rem; font-weight: 700; }
+.card .u { color: var(--muted); font-size: .8rem; margin-inline-start: 4px; }
+.card .s { color: var(--c); font-size: .76rem; font-weight: 600; }
+.card .n { color: var(--muted); font-size: .72rem; }
+
+/* main grid */
+.grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+h2 { font-size: 1.02rem; font-weight: 700; margin: 0; }
+.charts4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .charts4 { grid-template-columns: minmax(0, 1fr); } }
+.chart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; direction: ltr; min-width: 0; }
+.chart .ct { color: var(--muted); font-size: .82rem; padding: 2px 8px 0; direction: inherit; }
+[dir=rtl] .chart .ct { direction: rtl; text-align: right; }
+.plot { width: 100%; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.panel h3 { margin: 0 0 4px; font-size: .86rem; color: var(--muted); font-weight: 600; }
+.big { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
+.small { color: var(--muted); font-size: .85rem; }
+.bar { height: 7px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.bar > div { height: 100%; border-radius: 6px; transition: width .4s; }
+.impact { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 560px) and (max-width: 900px) { .impact { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* event log */
+.log { max-height: 340px; overflow-y: auto; padding-block: 4px; }
+.lrow { display: grid; grid-template-columns: 74px minmax(110px, 0.9fr) minmax(0, 2.2fr) 84px 104px; gap: 8px; align-items: start; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
+.lrow.hd { color: var(--muted); font-size: .76rem; font-weight: 600; position: sticky; top: 0; background: var(--panel); padding-top: 2px; }
+.lrow .tm { color: var(--muted); font-family: var(--mono); }
+.lrow .why { color: var(--fg); overflow-wrap: anywhere; }
+.tag { display: inline-block; font-size: .74rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.rule { color: var(--ok); border-color: rgba(61,190,139,.5); }
+.tag.ai { color: var(--blue); border-color: rgba(90,176,240,.55); }
+.tag.user { color: var(--warn); border-color: rgba(232,169,58,.55); }
+@media (max-width: 700px) {
+  .lrow { grid-template-columns: 70px minmax(0, 1fr); }
+  .lrow .why { grid-column: 1 / -1; }
+  .lrow.hd { display: none; }
+}
+.empty { color: var(--muted); font-size: .88rem; padding: 10px 0; }
+.foot { color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .valve.bad { animation: none; } .bar > div { transition: none; } }
+</style>
+
+<div class="wrap" id="app">
+  <header class="head">
+    <div class="brand">
+      <img class="mark" src="data:image/webp;base64,__MARK__" alt="EcoBio-Matrix logo">
+      <div>
+        <p class="title">EcoBio-Matrix · <span data-t="title"></span></p>
+        <div class="sub" id="subtitle"></div>
+      </div>
+    </div>
+    <div class="status">
+      <div class="clock"><b class="num" id="clock">--:--</b><small id="dayname"></small></div>
+      <div class="valve na" id="v1"><small data-t="v1"></small><span id="v1Txt">—</span></div>
+      <div class="valve na" id="v2"><small data-t="v2"></small><span id="v2Txt">—</span></div>
+      <div class="valve safe" id="safe" hidden><small data-t="safe_small"></small><span data-t="safe_badge"></span></div>
+    </div>
+  </header>
+
+  <section class="controls" aria-label="controls">
+    <div class="grp">
+      <span class="lbl" data-t="source"></span>
+      <div class="seg" role="group">
+        <button class="btn" type="button" id="srcLive" aria-pressed="true" data-t="src_live"></button>
+        <button class="btn sim" type="button" id="srcSim" aria-pressed="false" data-t="src_sim"></button>
+      </div>
+      <span class="conn liveOnly" id="conn" role="status"></span>
+    </div>
+    <span class="sep"></span>
+    <div class="grp liveOnly"><span class="small" data-t="live_hint"></span></div>
+    <div class="grp simOnly">
+      <button class="btn on" id="runBtn" type="button"></button>
+      <label class="lbl" for="speed" data-t="speed"></label>
+      <select id="speed"><option>1</option><option>2</option><option selected>5</option><option>10</option><option>15</option><option>30</option></select>
+    </div>
+    <span class="sep simOnly"></span>
+    <div class="grp simOnly">
+      <span class="lbl" data-t="scenarios"></span>
+      <button class="btn danger" type="button" data-sc="chlorine" data-t="sc_chlorine"></button>
+      <button class="btn danger" type="button" data-sc="detergent" data-t="sc_detergent"></button>
+      <button class="btn" type="button" data-sc="uv_aging" data-t="sc_uv"></button>
+      <button class="btn" type="button" data-sc="replace_uv" data-t="sc_replace"></button>
+      <button class="btn danger" type="button" data-sc="sensor_fault" data-t="sc_fault"></button>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <button class="btn" type="button" id="langBtn"></button>
+    </div>
+    <details class="settings">
+      <summary data-t="settings"></summary>
+      <div class="setgrid">
+        <label><span data-t="worshippers"></span><input type="number" id="setW" min="20" max="2000" step="10" value="150"></label>
+        <label><span data-t="lpa"></span><input type="number" id="setL" min="1" max="10" step="0.5" value="3.5"></label>
+        <label class="simOnly"><span data-t="start_time"></span><input type="text" id="setStart" value="11:05" inputmode="numeric"></label>
+        <label class="simOnly"><span data-t="start_friday"></span><select id="setFri"><option value="1" data-t="yes"></option><option value="0" data-t="no"></option></select></label>
+        <label><span data-t="fajr"></span><input type="text" id="pt_fajr" inputmode="numeric"></label>
+        <label><span data-t="dhuhr"></span><input type="text" id="pt_dhuhr" inputmode="numeric"></label>
+        <label><span data-t="asr"></span><input type="text" id="pt_asr" inputmode="numeric"></label>
+        <label><span data-t="maghrib"></span><input type="text" id="pt_maghrib" inputmode="numeric"></label>
+        <label><span data-t="isha"></span><input type="text" id="pt_isha" inputmode="numeric"></label>
+        <label class="liveOnly"><span data-t="log_ai"></span><select id="setLogAi"><option value="1" data-t="yes"></option><option value="0" data-t="no"></option></select></label>
+      </div>
+      <p class="small" data-t="prayer_note"></p>
+      <button class="btn primary" type="button" id="applyBtn" data-t="apply"></button>
+      <span class="small" id="setErr" role="status"></span>
+    </details>
+  </section>
+
+  <div class="alert warnbar" id="simBar" hidden><b data-t="sim_bar_t"></b><span data-t="sim_bar"></span><button class="btn" type="button" id="backLive" data-t="to_live"></button></div>
+  <div class="alert warnbar" id="connBar" hidden><b id="connBarT"></b><span id="connBarTxt"></span><button class="btn" type="button" id="toSim" data-t="to_sim"></button></div>
+  <div class="alert" id="alert" hidden><b id="alertT"></b><br><span id="alertTxt"></span></div>
+  <div class="alert ai" id="aiAlert" hidden><b data-t="ai_alert_t"></b><br><span id="aiAlertTxt"></span></div>
+
+  <section class="cards" id="cards" aria-label="sensors"></section>
+
+  <section class="grid">
+    <div class="col">
+      <h2 id="sensorsTitle"></h2>
+      <div class="charts4">
+        <div class="chart"><div class="ct" id="ct_orp"></div><div class="plot" id="p_orp"></div></div>
+        <div class="chart"><div class="ct" id="ct_turb"></div><div class="plot" id="p_turb"></div></div>
+        <div class="chart"><div class="ct" id="ct_do"></div><div class="plot" id="p_do"></div></div>
+        <div class="chart"><div class="ct" id="ct_ph"></div><div class="plot" id="p_ph"></div></div>
+      </div>
+    </div>
+    <div class="col">
+      <h2 data-t="ai_title"></h2>
+      <div class="chart"><div class="ct" data-t="score"></div><div class="plot" id="p_score"></div></div>
+      <div class="chart"><div class="ct" data-t="why"></div><div class="plot" id="p_why"></div></div>
+      <div class="small" id="normalNote"></div>
+      <div class="small liveOnly" data-t="ai_live_note"></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="col">
+      <h2 data-t="forecast_title"></h2>
+      <div class="chart"><div class="plot" id="p_fc"></div></div>
+      <div class="small liveOnly" data-t="fc_live_note"></div>
+    </div>
+    <div class="col">
+      <div class="panel" id="peakPanel"></div>
+      <div class="panel" id="energyPanel"></div>
+      <div class="panel" id="maintPanel"></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="col">
+      <h2 data-t="log_title"></h2>
+      <div class="panel log" id="log"></div>
+    </div>
+    <div class="col">
+      <h2 id="impactTitle"></h2>
+      <div class="impact" id="impact"></div>
+    </div>
+  </section>
+
+  <footer class="foot"><span data-t="models_note"></span><br><span id="disclaimer"></span></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-basic-dist-min@2.35.2/plotly-basic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+<script id="models" type="application/json">__MODELS__</script>
+<script>
+"use strict";
+/* ===================== Live data source (Supabase, phase 3) ===================== */
+// Public key: it can only INSERT and SELECT on the two tables (row level security). Never put a secret key here.
+const SUPABASE_URL = "https://vnwptdfnleongvkbiydc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_A-NSuIONi17ERzZtFdh3Yg_eM0yMuHV";
+const LIVE = {
+  windowSec: 600,   // charts show the last 10 minutes (the ESP32 sends 1 reading/s in demo mode)
+  firstLoad: 600,   // rows fetched on start
+  maxRows: 3600,    // kept in memory (1 hour at 1 reading/s)
+  pollMs: 3000,     // safety net next to Realtime: ask for rows newer than the last one we have
+  staleSec: 10,     // no new reading for this long = the device (Wokwi) is probably stopped
+  aiRecover: 20,    // AI alert clears after this many normal readings in a row (20 s in demo mode)
+  aiDedupSec: 60,   // do not write the same AI event twice within this window (several viewers)
+};
+
+/* ===================== Models (exported from scikit-learn) ===================== */
+const MODELS = JSON.parse(document.getElementById("models").textContent);
+function walk(tr, x) { const [f, t, l, r] = tr; let i = 0; while (f[i] !== -1) i = x[f[i]] <= t[i] ? l[i] : r[i]; return t[i]; }
+// IsolationForest.decision_function — identical to scikit-learn
+function anomalyDecision(x) {
+  const F = MODELS.iforest; let s = 0;
+  for (const tr of F.trees) s += walk(tr, x);
+  return -Math.pow(2, -s / (F.trees.length * F.c)) - F.offset;
+}
+// HistGradientBoostingRegressor.predict — identical to scikit-learn
+function hgbPredict(x) { let s = MODELS.hgb.base; for (const tr of MODELS.hgb.trees) s += walk(tr, x); return s; }
+
+/* ===================== Shared rules ===================== */
+const PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+const DEFAULT_TIMES = { fajr: "04:28", dhuhr: "11:43", asr: "15:08", maghrib: "17:38", isha: "19:08" };
+const TRAIN_PER_PRAYER = 150 * 4;   // the forecaster was trained with 150 worshippers × 4 L
+// pH 6.5–8.4, turbidity ≤ 5 NTU, chlorine 0.2–0.5 mg/L: MEWA greywater guide (1429H) and treated-water standards (2025).
+// UV ≥ 70 %: approved design. Storage ≤ 90 %: approved design. DO ≥ 1.0 and ORP ≤ 400 mV: simulation demo values.
+const LIMITS = { ph: [6.5, 8.4], turb: [null, 5.0], do: [1.0, null], orp: [null, 400.0], uv: [70.0, null] };
+const LIVE_LIMITS = { ph: [6.5, 8.4], turb: [null, 5.0], uv: [70.0, null], cl: [0.2, 0.5], level: [null, 90.0] };
+const NORMAL = { ph: [7.3, 0.12], turb: [2.0, 0.30], orp: [180, 15], do_resid: [0, 0.20] };
+const UV_NORMAL_DECAY = 30 / (9000 * 60), UV_AGING_MULT = 5000;
+const IRRIGATION = [[5 * 60 + 15, 6 * 60 + 30], [20 * 60, 21 * 60 + 30]];
+const FEATURES = ["ph", "turb", "do_resid", "orp"];
+// which valve protects against which cause (same split as the ESP32 rules)
+const DIAG_VALVE = { chlorine: "valve1", detergent: "valve1", ph: "valve1", pattern: "valve1", turbidity: "valve2", uv: "valve2", sensor: "both" };
+
+const mod = (a, n) => ((a % n) + n) % n;
+const clip = (v, a, b) => Math.min(b, Math.max(a, v));
+const toMin = s => { const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(s); if (!m || +m[1] > 23 || +m[2] > 59) throw new Error("time"); return +m[1] * 60 + +m[2]; };
+const hhmm = m => { m = mod(Math.floor(m), 1440); return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+function randn(mu = 0, sd = 1) { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return mu + sd * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+const doBaseline = aer => 1.2 + 2.6 * aer / 100;
+// residual chlorine from ORP2: same two-point line as sketch.ino (650 mV → 0.2, 750 mV → 0.5). Estimate, needs a DPD calibration.
+const clFromOrp2 = mv => mv === null || mv === undefined ? null : Math.max(0, 0.2 + (mv - 650) * 0.003);
+
+function inflowAt(tod, pm, friday, cfg) {
+  let flow = 0.3; const per = cfg.worshippers * cfg.lpa;
+  for (const p of PRAYERS) {
+    let vol = per, mu = pm[p] - 8, sd = 7;
+    if (friday && p === "dhuhr") { vol = per * 3; mu = pm[p] - 25; sd = 16; }
+    const d = mod(tod - mu + 720, 1440) - 720;
+    flow += vol * Math.exp(-0.5 * (d / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI));
+  }
+  return flow;
+}
+function features(tod, pm, friday) {
+  const x = PRAYERS.map(p => clip(mod(tod - pm[p] + 720, 1440) - 720, -180, 180));
+  x.push(friday ? 1 : 0, tod / 60); return x;
+}
+function forecastDay(pm, cfg, friday) {
+  const ratio = (cfg.worshippers * cfg.lpa) / TRAIN_PER_PRAYER, out = new Float64Array(1440);
+  for (let t = 0; t < 1440; t++) out[t] = Math.max(0, 0.3 + (Math.max(0, hgbPredict(features(t, pm, friday))) - 0.3) * ratio);
+  return out;
+}
+function peakRef(fc) { let best = 1; for (let t = 0; t < 1440; t++) { let s = 0; for (let k = 0; k < 30; k++) s += fc[(t + k) % 1440]; best = Math.max(best, s); } return best; }
+function aerationPlan(fc, ref, tod) { let nxt = 0; for (let k = 1; k <= 30; k++) nxt += fc[(tod + k) % 1440]; return clip(30 + 70 * nxt / ref, 30, 100); }
+function nextPeakOf(pm, fc, tod) {
+  let best = null;
+  for (const p of PRAYERS) { const dt = mod(pm[p] - tod, 1440); if (!best || dt < best[1]) best = [p, dt]; }
+  let vol = 0; for (let t = pm[best[0]] - 60; t < pm[best[0]] + 15; t++) vol += fc[mod(t, 1440)];
+  return [best[0], best[1], vol];
+}
+function diagnose(zd, uv, b) {
+  if (b.includes("sensor")) return "sensor";
+  if (zd.orp > 4 || b.includes("orp")) return "chlorine";
+  if (zd.turb > 4 && zd.do_resid < -3) return "detergent";
+  if (b.includes("uv") || uv < LIMITS.uv[0]) return "uv";
+  if (Math.abs(zd.ph) > 4 || b.includes("ph")) return "ph";
+  if (zd.turb > 4 || b.includes("turb")) return "turbidity";
+  return "pattern";
+}
+
+/* ===================== Simulation (port of sim.py) — fallback / offline demo ===================== */
+class Simulation {
+  constructor(times, cfg, startMinute, startFriday) {
+    this.cfg = cfg; this.pm = {}; for (const p of PRAYERS) this.pm[p] = toMin(times[p]);
+    this.startWeekday = startFriday ? 4 : 3;
+    this.minute = startMinute; this.bio = 1; this.uv = 96; this.uvAging = false; this.effects = [];
+    this.faultLeft = 0; this.frozenPh = null; this.phWin = [];
+    this.diverting = false; this.bad = 0; this.good = 0; this.diagnosis = null;
+    this.tank = 900; this.reused = 0; this.diverted = 0; this.overflow = 0; this.aerSum = 0; this.ticks = 0;
+    this.history = []; this.events = []; this._day = null; this.newDay();
+  }
+  get tod() { return mod(this.minute, 1440); }
+  get day() { return Math.floor(this.minute / 1440); }
+  get friday() { return (this.startWeekday + this.day) % 7 === 4; }
+  forecastDay(friday) { return forecastDay(this.pm, this.cfg, friday); }
+  newDay() {
+    this._day = this.day; this.fc = this.forecastDay(this.friday);
+    this.actual = new Array(1440).fill(null); this.aerDay = new Array(1440).fill(null);
+    this.attendance = 0.85 + Math.random() * 0.3;
+    this.fcRef = peakRef(this.fc);
+  }
+  log(kind, detail, by) { this.events.unshift({ minute: this.minute, kind, detail, by }); this.events.length = Math.min(this.events.length, 60); }
+  trigger(kind) {
+    if (kind === "chlorine") { this.effects.push({ type: "chlorine", age: 0 }); this.bio *= 0.45; }
+    else if (kind === "detergent") { this.effects.push({ type: "detergent", age: 0 }); this.bio *= 0.85; }
+    else if (kind === "uv_aging") this.uvAging = true;
+    else if (kind === "replace_uv") { this.uvAging = false; this.uv = 100; }
+    else if (kind === "sensor_fault") { this.faultLeft = 90; this.frozenPh = null; }
+    this.log(kind, null, "user");
+  }
+  nextPeak() { return nextPeakOf(this.pm, this.fc, this.tod); }
+  uvDaysLeft() { const rate = UV_NORMAL_DECAY * (this.uvAging ? UV_AGING_MULT : 1); return this.uv <= LIMITS.uv[0] ? 0 : (this.uv - LIMITS.uv[0]) / rate / 1440; }
+  monthlyM3() { const n = this.forecastDay(false).reduce((a, b) => a + b, 0), f = this.forecastDay(true).reduce((a, b) => a + b, 0); return (6 * n + f) / 7 * 30 / 1000; }
+  get energySaved() { return this.ticks ? 100 - this.aerSum / this.ticks : 0; }
+
+  step() {
+    if (this.day !== this._day) this.newDay();
+    const tod = this.tod;
+    const truth = inflowAt(tod, this.pm, this.friday, this.cfg) * this.attendance;
+    const inflow = Math.max(0, truth + randn(0, 0.15 + 0.12 * truth));
+    this.actual[tod] = inflow;
+
+    const aer = aerationPlan(this.fc, this.fcRef, tod);
+    this.aerDay[tod] = aer; this.aerSum += aer;
+
+    let phAdd = 0, turbAdd = 0, doSub = 0, orpAdd = 0;
+    for (const e of this.effects) {
+      const a = e.age;
+      if (e.type === "chlorine") { orpAdd += 480 * Math.exp(-a / 25); phAdd += 0.5 * Math.exp(-a / 30); }
+      else { turbAdd += 7 * Math.exp(-a / 40); doSub += 1.6 * Math.exp(-a / 40); phAdd += 0.45 * Math.exp(-a / 40); }
+      e.age++;
+    }
+    this.effects = this.effects.filter(e => e.age < 200);
+    this.bio += (1 - this.bio) * 0.02;
+
+    let ph = randn(...NORMAL.ph) + phAdd;
+    if (this.faultLeft > 0) { if (this.frozenPh === null) this.frozenPh = Math.round(ph * 100) / 100; ph = this.frozenPh; this.faultLeft--; } else this.frozenPh = null;
+    this.phWin.push(ph); if (this.phWin.length > 10) this.phWin.shift();
+    const phStuck = this.phWin.length === 10 && Math.max(...this.phWin) - Math.min(...this.phWin) < 1e-6;
+    const turb = Math.max(0.1, randn(...NORMAL.turb) + 0.004 * inflow + (1 - this.bio) * 7 + turbAdd);
+    const dox = Math.max(0, doBaseline(aer) + randn(...NORMAL.do_resid) + (1 - this.bio) * 2 - doSub);
+    const orp = randn(...NORMAL.orp) + orpAdd;
+    this.uv = Math.max(0, this.uv - UV_NORMAL_DECAY * (this.uvAging ? UV_AGING_MULT : 1));
+    const uv = this.uv + randn(0, 0.3);
+    const cl = clip(0.35 + randn(0, 0.015), 0, 2), temp = 25 + randn(0, 0.15);   // simulated, for the two extra cards
+
+    const x = [ph, turb, dox - doBaseline(aer), orp];
+    const score = -anomalyDecision(x);
+    const z = x.map((v, i) => (v - MODELS.stats.mean[i]) / MODELS.stats.std[i]);
+    const zd = {}; FEATURES.forEach((k, i) => zd[k] = z[i]);
+    const mlFlag = score > 0 && Math.max(...z.map(Math.abs)) >= 3.5;
+
+    const vals = { ph, turb, do: dox, orp, uv }, breaches = [];
+    for (const k in LIMITS) { const [lo, hi] = LIMITS[k]; if ((lo !== null && vals[k] < lo) || (hi !== null && vals[k] > hi)) breaches.push(k); }
+    // sensor health: a real probe always shows small noise; a flat line or a physically impossible value = sensor fault
+    if (phStuck || ph < 0 || ph > 14 || turb > 1000 || dox > 20 || Math.abs(orp) > 1200) breaches.push("sensor");
+    const flag = mlFlag || breaches.length > 0;
+    if (flag) { this.bad++; this.good = 0; } else { this.good++; this.bad = 0; }
+
+    if (!this.diverting && (this.bad >= 2 || breaches.length)) {
+      this.diverting = true; this.diagnosis = diagnose(zd, uv, breaches); this.log("divert", this.diagnosis, breaches.length ? "rule" : "ai");
+    } else if (this.diverting && this.good >= 20) {
+      this.diverting = false; this.log("recover", this.diagnosis, "rule"); this.diagnosis = null;
+    }
+
+    if (this.diverting) this.diverted += inflow; else this.tank += inflow;
+    let demand = 0.3 * inflow + 0.2;
+    if (IRRIGATION.some(([a, b]) => a <= tod && tod < b)) demand += 18;
+    const supply = Math.min(this.tank, demand);
+    this.tank -= supply; this.reused += supply;
+    if (this.tank > 2500) { this.overflow += this.tank - 2500; this.tank = 2500; }
+
+    this.ticks++;
+    this.history.push({ minute: this.minute, ph, turb, do: dox, orp, uv, cl, temp, level: 100 * this.tank / 2500, inflow, aer, score, flag,
+      diverting: this.diverting, z_ph: zd.ph, z_turb: zd.turb, z_do: zd.do_resid, z_orp: zd.orp });
+    if (this.history.length > 720) this.history.shift();
+    this.minute++;
+  }
+  run(n) { for (let i = 0; i < n; i++) this.step(); }
+}
+
+/* ===================== Text ===================== */
+const TXT = {
+  title: ["مركز التحكم", "Command Center"],
+  sub_live: ["قراءات حية من ESP32 على محاكي Wokwi عبر Supabase", "Live readings from an ESP32 on the Wokwi simulator, via Supabase"],
+  sub_sim: ["تجربة الجامع · بيانات محاكاة ضمن نطاقات واقعية", "Mosque pilot · simulated data within realistic ranges"],
+  source: ["مصدر البيانات:", "Data source:"],
+  src_live: ["🟢 حي", "🟢 Live"], src_sim: ["🟠 محاكاة", "🟠 Simulation"],
+  live_hint: ["للتجربة: حرّك المقابض في Wokwi، أو اضغط زر «عطل حساس» (F)", "To test: move the sliders in Wokwi, or press the “sensor fault” button (F)"],
+  conn_loading: ["⏳ جاري الاتصال بـ Supabase…", "⏳ Connecting to Supabase…"],
+  conn_ok: ["● متصل · آخر قراءة قبل {s}", "● Connected · last reading {s} ago"],
+  conn_wait: ["● متصل · بانتظار أول قراءة", "● Connected · waiting for the first reading"],
+  conn_stale: ["● متصل · ما وصلت قراءة من {s}", "● Connected · no reading for {s}"],
+  conn_err: ["● ما فيه اتصال بـ Supabase", "● No connection to Supabase"],
+  rt_on: ["Realtime", "Realtime"], rt_off: ["تحديث كل 3 ث", "polling every 3 s"],
+  stale_t: ["⚠ القراءات وقفت:", "⚠ Readings stopped:"], stale_txt: ["آخر قراءة وصلت قبل {s}. تأكد إن محاكاة Wokwi شغالة وتبويبها ظاهر.", "The last reading arrived {s} ago. Check that the Wokwi simulation is running and its tab is visible."],
+  err_t: ["⚠ انقطع الاتصال:", "⚠ Connection lost:"], err_txt: ["ما قدرنا نوصل لـ Supabase ({e}). لو استمر، بدّل للمحاكاة.", "Could not reach Supabase ({e}). If it continues, switch to the simulation."],
+  net_word: ["الإنترنت ما يوصل للخادم", "the network cannot reach the server"],
+  to_sim: ["التبديل للمحاكاة", "Switch to simulation"], to_live: ["الرجوع للقراءات الحية", "Back to live data"],
+  sim_bar_t: ["وضع المحاكاة:", "Simulation mode:"], sim_bar: ["القراءات اللي تشوفها الحين محاكاة، مو من الجهاز.", "The readings shown now are simulated, not from the device."],
+  run: ["⏸ إيقاف مؤقت", "⏸ Pause"], paused: ["▶ تشغيل", "▶ Run"],
+  speed: ["السرعة (دقيقة/ثانية)", "Speed (min/sec)"],
+  scenarios: ["سيناريوهات العرض:", "Demo scenarios:"],
+  sc_chlorine: ["🧪 صدمة كلور", "🧪 Chlorine shock"], sc_detergent: ["🫧 حمل منظفات زائد", "🫧 Detergent overload"],
+  sc_uv: ["💡 تقادم لمبة UV", "💡 UV lamp aging"], sc_replace: ["🔧 استبدال لمبة UV", "🔧 Replace UV lamp"], sc_fault: ["🔌 عطل حساس pH", "🔌 pH sensor fault"],
+  lang: ["English", "العربية"],
+  settings: ["⚙ الإعدادات", "⚙ Settings"],
+  worshippers: ["عدد المتوضئين لكل صلاة", "Worshippers per prayer"], lpa: ["لترات لكل وضوء (تقديري)", "Liters per ablution (estimate)"],
+  start_time: ["وقت البداية", "Start time"], start_friday: ["ابدأ يوم الجمعة", "Start on a Friday"], yes: ["نعم", "Yes"], no: ["لا", "No"],
+  log_ai: ["سجّل تنبيهات الذكاء الاصطناعي في Supabase", "Record AI alerts in Supabase"],
+  prayer_note: ["أوقات الصلاة تقريبية للرياض، عدّلها بصيغة HH:MM. التنبؤ بالتدفق تقديري من نموذج متدرّب على بيانات محاكاة.", "Prayer times are approximate for Riyadh, edit as HH:MM. The inflow forecast is an estimate from a model trained on simulated data."],
+  apply: ["تطبيق", "Apply"], bad_time: ["اكتب الأوقات بصيغة HH:MM مثل 04:28", "Enter times as HH:MM, e.g. 04:28"],
+  v1: ["صمام 1 «سليم؟»", "Valve 1 “Safe?”"], v2: ["صمام 2 «مطابق؟»", "Valve 2 “Compliant?”"],
+  v_normal: ["المسار الطبيعي ✓", "NORMAL PATH ✓"], v_sewer: ["تحويل للصرف ✕", "TO SEWER ✕"],
+  safe_small: ["حساس معطل", "Sensor fault"], safe_badge: ["⚠ وضع آمن", "⚠ SAFE MODE"],
+  alert_rule: ["⚠ تنبيه: تحويل المياه للصرف تلقائيًا", "⚠ Alert: water automatically diverted to the sewer"],
+  alert_safe: ["⚠ وضع آمن: حساس معطل، والصمامان على الصرف", "⚠ Safe mode: a sensor is faulty, both valves to the sewer"],
+  ai_alert_t: ["🧠 تنبيه الذكاء الاصطناعي", "🧠 AI alert"],
+  ai_alert_txt: ["نمط شاذ: {d}. التوصية: {v} للصرف.", "Anomalous pattern: {d}. Recommendation: {v} to the sewer."],
+  ph: ["الحموضة pH", "pH"], turb: ["العكارة", "Turbidity"], do: ["الأكسجين المذاب", "Dissolved O₂"], orp: ["جهد الأكسدة ORP1", "ORP1"],
+  uv: ["شدة لمبة UV", "UV lamp"], level: ["مستوى التخزين", "Storage level"], temp: ["الحرارة", "Temperature"], cl: ["الكلور المتبقي", "Residual chlorine"],
+  cl_note: ["تقديري من ORP2", "estimated from ORP2"],
+  st_ok: ["طبيعي", "normal"], st_warn: ["تحذير", "warning"], st_alarm: ["خارج الحد", "out of limit"], st_na: ["ما فيه قراءة", "no reading"],
+  sensors_sim: ["قراءات الحساسات (آخر 12 ساعة، محاكاة)", "Sensor readings (last 12 h, simulated)"],
+  sensors_live: ["قراءات الحساسات (آخر 10 دقائق)", "Sensor readings (last 10 min)"],
+  ai_title: ["🧠 الذكاء الاصطناعي: كشف الشذوذ", "🧠 AI: anomaly detection"],
+  score: ["درجة الشذوذ (Isolation Forest): فوق الصفر = شاذ", "Anomaly score (Isolation Forest): above zero = anomalous"],
+  why: ["لماذا؟ انحراف كل حساس عن الطبيعي (σ)", "Why? Each sensor's deviation from normal (σ)"],
+  normal_state: ["✅ كل القراءات طبيعية: المياه تكمل مسارها", "✅ All readings normal: water stays on its normal path"],
+  ai_normal: ["✅ الذكاء الاصطناعي: القراءات ضمن النمط الطبيعي", "✅ AI: readings match the normal pattern"],
+  ai_na: ["⏸ الذكاء الاصطناعي متوقف مؤقتًا: فيه قراءة ناقصة (حساس معطل)", "⏸ AI paused: a reading is missing (faulty sensor)"],
+  ai_live_note: ["الذكاء الاصطناعي هنا يراقب وينبّه ويوصي. الصمامات يتحكم فيها الـ ESP32 بقواعد ثابتة، حتى لو انقطع الإنترنت. النموذج متدرّب على بيانات محاكاة.", "Here the AI watches, alerts and recommends. The valves are controlled by fixed rules on the ESP32, even without internet. The model was trained on simulated data."],
+  forecast_title: ["🕌 التنبؤ بالتدفق حسب أوقات الصلاة", "🕌 Inflow forecast from prayer times"],
+  forecast: ["التدفق المتوقع (نموذج ML، تقديري)", "Forecast inflow (ML model, estimate)"], actual: ["التدفق (محاكاة)", "Inflow (simulated)"],
+  aeration: ["التهوية المقترحة %", "Suggested aeration %"], now: ["الآن", "now"], lpm: ["لتر/دقيقة", "L/min"],
+  fc_live_note: ["التدفق الفعلي ما يظهر هنا لأن النموذج الحالي ما فيه حساس تدفق.", "Actual inflow is not shown: the current prototype has no flow sensor."],
+  next_peak: ["⏱ الذروة القادمة", "⏱ Next peak"], in_min: ["بعد {m} دقيقة", "in {m} min"], fc_vol: ["حجم متوقع ≈ {v} لتر (تقديري)", "expected ≈ {v} L (estimate)"],
+  aer_now: ["التهوية المقترحة الآن {a}%", "Suggested aeration now {a}%"], preboost: ["رفع مسبق قبل الذروة", "pre-boosting before the peak"],
+  energy: ["⚡ تقدير توفير طاقة التهوية (محاكاة)", "⚡ Aeration energy estimate (simulation)"],
+  energy_sub: ["رقم تقديري من المحاكاة مقارنة بتشغيل المضخة 100% طول الوقت، مو نتيجة مقاسة.", "An estimate from the simulation vs running the blower at 100% all the time, not a measured result."],
+  pumps: ["⚙ المضخات (من ESP32)", "⚙ Pumps (from the ESP32)"], air_pump: ["مضخة الهواء", "Air pump"], cl_pump: ["مضخة الكلور", "Chlorine pump"],
+  on: ["شغالة", "ON"], off: ["واقفة", "OFF"],
+  cl_pump_note: ["مضخة الكلور تشتغل لما يكون الكلور التقديري أقل من 0.35 ملغ/لتر (منتصف الحد).", "The chlorine pump runs while the estimated chlorine is below 0.35 mg/L (middle of the range)."],
+  maint: ["🔧 الصيانة التنبؤية", "🔧 Predictive maintenance"], uv_left: ["استبدال لمبة UV بعد ≈ {x} (تقديري)", "Replace UV lamp in ≈ {x} (estimate)"],
+  uv_now: ["لمبة UV أقل من الحد الآمن، استبدلها الآن", "UV lamp below the safe limit, replace now"],
+  uv_live_ok: ["شدة UV ضمن الحد الآمن", "UV intensity within the safe limit"],
+  uv_live_pred: ["التنبؤ بموعد الاستبدال يحتاج قراءات أيام من القطعة الحقيقية.", "Predicting the replacement date needs days of readings from real hardware."],
+  days: ["{n} يوم", "{n} days"], hours: ["{n} ساعة", "{n} h"], safe_limit: ["حد الأمان", "safe limit"],
+  water_title: ["💧 أثر المياه (محاكاة)", "💧 Water impact (simulated)"], reused: ["مياه أُعيد استخدامها", "Water reused"],
+  unsafe: ["حُوّلت للصرف (غير آمنة)", "Diverted (unsafe)"], month: ["التوقع الشهري (تقديري)", "Monthly projection (estimate)"],
+  live_title: ["📡 البيانات الحية", "📡 Live data"], rx_hour: ["قراءات وصلت آخر ساعة", "Readings in the last hour"],
+  sewer_hour: ["وقت التحويل للصرف آخر ساعة", "Time diverted in the last hour"], last_rx: ["آخر قراءة", "Last reading"],
+  ago_s: ["{n} ث", "{n} s"], ago_m: ["{n} د", "{n} min"], ago_h: ["{n} س", "{n} h"], ago_d: ["{n} يوم", "{n} d"],
+  log_title: ["📋 سجل الأحداث", "📋 Event log"], log_empty: ["ما فيه أحداث للحين", "No events yet"],
+  c_time: ["الوقت", "Time"], c_event: ["الحدث", "Event"], c_reason: ["السبب", "Reason"], c_valve: ["الصمام", "Valve"], c_by: ["مين قرر", "Decided by"],
+  by_rule: ["قاعدة (ESP32)", "Rule (ESP32)"], by_rule_sim: ["قاعدة ثابتة", "Fixed rule"], by_ai: ["ذكاء اصطناعي", "AI"], by_user: ["سيناريو", "Scenario"], by_sys: ["النظام", "System"],
+  valve1: ["صمام 1", "Valve 1"], valve2: ["صمام 2", "Valve 2"], both: ["الصمامين", "Both"],
+  e_boot: ["تشغيل الجهاز", "Device start"], e_divert: ["تحويل للصرف", "Diverted"], e_restore: ["رجوع للطبيعي", "Back to normal"], e_recover: ["رجوع للطبيعي", "Back to normal"],
+  e_safe_mode: ["وضع آمن", "Safe mode"], e_safe_mode_end: ["انتهاء الوضع الآمن", "Safe mode ended"],
+  e_net_offline: ["انقطاع الإنترنت", "Internet lost"], e_net_online: ["رجوع الإنترنت", "Internet back"],
+  e_ai_anomaly: ["تنبيه ذكاء اصطناعي", "AI alert"], e_ai_clear: ["الذكاء الاصطناعي: طبيعي", "AI: normal again"],
+  e_connection_test: ["فحص اتصال", "Connection test"], e_start: ["بدأت المحاكاة", "Simulation started"], e_scenario: ["سيناريو", "Scenario"], e_other: ["حدث", "Event"],
+  ev_chlorine: ["إضافة صدمة كلور", "Chlorine shock injected"], ev_detergent: ["حمل منظفات زائد", "Detergent overload injected"], ev_uv_aging: ["تسريع تقادم لمبة UV", "UV lamp aging (fast-forward)"],
+  ev_replace_uv: ["تم استبدال لمبة UV", "UV lamp replaced"], ev_sensor_fault: ["تجمّد قراءة حساس pH", "pH sensor reading frozen"],
+  ev_recover: ["عادت القراءات طبيعية", "Readings back to normal"], ev_start: ["بدأت المحاكاة", "Simulation started"],
+  dg_chlorine: ["صدمة مادة مؤكسدة (كلور محتمل): ارتفاع حاد في ORP", "Oxidiser (possible chlorine) shock: sharp ORP spike"],
+  dg_detergent: ["حمل منظفات/مواد عضوية زائد: العكارة ترتفع والأكسجين ينخفض", "Detergent/organic overload: turbidity up, oxygen down"],
+  dg_uv: ["لمبة UV أقل من الشدة الآمنة: التعقيم غير مضمون", "UV lamp below safe intensity: disinfection not guaranteed"],
+  dg_ph: ["صدمة في الحموضة pH", "pH shock"], dg_turbidity: ["عكارة عالية", "High turbidity"], dg_pattern: ["نمط غير طبيعي بين أكثر من حساس", "Unusual combination across several sensors"],
+  dg_sensor: ["عطل حساس: قراءة pH ثابتة بدون أي تذبذب، وضع آمن وطلب صيانة", "Sensor fault: pH reading frozen with no noise, safe mode and maintenance request"],
+  fajr: ["الفجر", "Fajr"], dhuhr: ["الظهر", "Dhuhr"], jumuah: ["الجمعة", "Jumu'ah"], asr: ["العصر", "Asr"], maghrib: ["المغرب", "Maghrib"], isha: ["العشاء", "Isha"],
+  models_note: ["النماذج نفسها في نسخة Python: Isolation Forest (150 شجرة) لكشف الشذوذ و Gradient Boosting للتنبؤ، دُرّبت بمكتبة scikit-learn على بيانات محاكاة وصُدّرت لتعمل في المتصفح بنفس النتائج.",
+                "Same models as the Python version: Isolation Forest (150 trees) for anomaly detection and Gradient Boosting for forecasting, trained in scikit-learn on simulated data and exported to run in the browser with identical results."],
+  disc_live: ["القراءات من ESP32 افتراضي على محاكي Wokwi، مو من قطع حقيقية ولا من ماء حقيقي. حدود pH (6.5–8.4) والعكارة (≤5 NTU) والكلور (0.2–0.5 ملغ/لتر) من الدليل الإرشادي للمياه الرمادية 1429هـ ومعايير المياه المعالجة 2025، وحد UV (70%) والتخزين (90%) من التصميم المعتمد. الكلور تقديري من ORP2 ويحتاج معايرة.",
+              "Readings come from a virtual ESP32 on the Wokwi simulator, not from real hardware or real water. pH (6.5–8.4), turbidity (≤5 NTU) and chlorine (0.2–0.5 mg/L) limits come from the MEWA greywater guide (1429H) and the 2025 treated-water standards; UV (70%) and storage (90%) from the approved design. Chlorine is estimated from ORP2 and needs calibration."],
+  disc_sim: ["جميع القراءات في وضع المحاكاة مُحاكاة. حدود pH والعكارة من الدليل الإرشادي 1429هـ، وحد ORP (400) والأكسجين (1.0) قيم تجريبية للمحاكاة.",
+             "All readings in simulation mode are simulated. pH and turbidity limits come from the MEWA guide (1429H); the ORP (400) and oxygen (1.0) limits are demo values for the simulation."],
+};
+const DAYS = [["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"], ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]];
+const UNITS = { ph: "", turb: "NTU", do: "mg/L", orp: "mV", uv: "%", level: "%", temp: "°C", cl: "mg/L" };
+let lang = 0;
+try { if (localStorage.getItem("ebm-lang") === "en") lang = 1; } catch (e) {}
+const t = (k, o) => { let s = (TXT[k] || [k, k])[lang]; if (o) for (const q in o) s = s.replace("{" + q + "}", o[q]); return s; };
+const tAr = (k, o) => { let s = TXT[k][0]; if (o) for (const q in o) s = s.replace("{" + q + "}", o[q]); return s; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const localStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const hms = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const dayIdx = d => (d.getDay() + 6) % 7;   // Monday = 0
+function agoText(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 90) return t("ago_s", { n: sec });
+  if (sec < 5400) return t("ago_m", { n: Math.round(sec / 60) });
+  if (sec < 129600) return t("ago_h", { n: Math.round(sec / 3600) });
+  return t("ago_d", { n: Math.round(sec / 86400) });
+}
+
+/* ===================== State ===================== */
+const C = { bg: "#0B2321", panel: "#123532", line: "#1F4743", fg: "#E9F1EE", muted: "#9BB8B1", ok: "#3DBE8B", warn: "#E8A93A", bad: "#F0603C", blue: "#5AB0F0" };
+let settings = { times: { ...DEFAULT_TIMES }, cfg: { worshippers: 150, lpa: 3.5 }, start: "11:05", friday: true, logAi: true };
+let mode = /[?&]mode=sim\b/.test(location.search) ? "sim" : "live";
+let sim, running = true, speed = 5, timer = null, monthlyCache = 0;
+
+function newSim() {
+  const warm = 120;
+  sim = new Simulation(settings.times, { ...settings.cfg }, mod(toMin(settings.start) - warm, 1440), settings.friday);
+  sim.run(warm); sim.events = []; sim.log("start", null, "sys");
+  monthlyCache = sim.monthlyM3();
+}
+
+/* ===================== Live data (Supabase REST + Realtime) ===================== */
+const sb = (window.supabase && window.supabase.createClient)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
+  : null;
+const live = { rows: [], ids: new Set(), events: [], evIds: new Set(), lastId: 0, lastEvId: 0,
+  state: "loading", err: "", rt: false, ch: null, pollTimer: null, started: false, loadedAt: Date.now(),
+  ai: { bad: 0, good: 0, active: false, recorded: false, diag: null, row: null, lastTs: 0 } };
+
+function aiOf(r) {
+  if ([r.ph, r.turbidity, r.do_mgl, r.orp_in_mv].some(v => v === null || v === undefined)) return null;
+  const aer = r.air_pump ? 100 : 30;   // estimate: the ESP32 only reports the air pump ON/OFF, the model expects an aeration %
+  const x = [r.ph, r.turbidity, r.do_mgl - doBaseline(aer), r.orp_in_mv];
+  const score = -anomalyDecision(x);
+  const z = x.map((v, i) => (v - MODELS.stats.mean[i]) / MODELS.stats.std[i]);
+  return { score, z, flag: score > 0 && Math.max(...z.map(Math.abs)) >= 3.5 };
+}
+function prepRow(r) {
+  r.t = new Date(r.ts); r.cl = clFromOrp2(r.orp_cl_mv); r.ai = aiOf(r);
+  r.sewer = r.valve1 === "sewer" || r.valve2 === "sewer";
+  return r;
+}
+function addRows(rows) {
+  let added = 0;
+  for (const r of rows) {
+    if (!r || live.ids.has(r.id)) continue;
+    live.ids.add(r.id); live.lastId = Math.max(live.lastId, r.id);
+    live.rows.push(prepRow(r)); added++;
+  }
+  if (!added) return;
+  live.rows.sort((a, b) => a.t - b.t || a.id - b.id);
+  if (live.rows.length > LIVE.maxRows) { for (const r of live.rows.splice(0, live.rows.length - LIVE.maxRows)) live.ids.delete(r.id); }
+  for (const r of live.rows) if (r.t.getTime() > live.ai.lastTs) aiStep(r);
+  if (mode === "live") render();
+}
+function addEvents(evs) {
+  let added = 0;
+  for (const e of evs) {
+    if (!e || live.evIds.has(e.id)) continue;
+    live.evIds.add(e.id); live.lastEvId = Math.max(live.lastEvId, e.id);
+    e.t = new Date(e.ts); live.events.push(e); added++;
+  }
+  if (!added) return;
+  live.events.sort((a, b) => b.t - a.t || b.id - a.id);
+  live.events.length = Math.min(live.events.length, 120);
+  if (mode === "live") render();
+}
+function liveZd(r) { const zd = {}; FEATURES.forEach((k, i) => zd[k] = r.ai.z[i]); return zd; }
+function liveBreaches(r) {
+  const vals = { ph: r.ph, turb: r.turbidity, do: r.do_mgl, orp: r.orp_in_mv, uv: r.uv_pct }, b = [];
+  for (const k in LIMITS) { const [lo, hi] = LIMITS[k]; const v = vals[k]; if (v === null || v === undefined) continue; if ((lo !== null && v < lo) || (hi !== null && v > hi)) b.push(k); }
+  return b;
+}
+// AI state machine on live readings: alert after 2 anomalous readings in a row, clear after LIVE.aiRecover normal ones.
+function aiStep(r) {
+  const st = live.ai; st.lastTs = r.t.getTime();
+  if (!r.ai) { st.bad = 0; return; }
+  if (r.ai.flag) { st.bad++; st.good = 0; } else { st.good++; st.bad = 0; }
+  if (!st.active && st.bad >= 2) {
+    st.active = true; st.row = r; st.diag = diagnose(liveZd(r), r.uv_pct ?? 100, liveBreaches(r)); st.recorded = recordAi("ai_anomaly", r);
+  } else if (st.active && !st.recorded && r.ai.flag) {
+    // the alert started in old history (before the page opened): record it with the first new anomalous reading
+    st.recorded = recordAi("ai_anomaly", r);
+  } else if (st.active && st.good >= LIVE.aiRecover) {
+    if (st.recorded) recordAi("ai_clear", r);
+    st.active = false; st.recorded = false; st.diag = null; st.row = null;
+  }
+}
+// The AI decision goes into the shared events table (decided_by = 'ai'), once, even if several people have the page open.
+// Returns true when the reading is recent enough to be recorded (the insert itself runs in the background).
+function recordAi(type, r) {
+  if (!sb || !settings.logAi || r.t.getTime() < live.loadedAt - 5000) return false;
+  saveAi(type, r);
+  return true;
+}
+async function saveAi(type, r) {
+  const now = Date.now();
+  if (live.events.some(e => e.decided_by === "ai" && e.type === type && now - e.t.getTime() < LIVE.aiDedupSec * 1000)) return;
+  const diag = live.ai.diag || "pattern", valve = DIAG_VALVE[diag] || "valve1";
+  const reason = type === "ai_anomaly"
+    ? `Isolation Forest: ${tAr("dg_" + diag)}. التوصية: ${tAr(valve)} للصرف`
+    : `القراءات رجعت للنمط الطبيعي (${LIVE.aiRecover} قراءة متتالية)`;
+  const row = { ts: r.ts, type, reason, valve: type === "ai_anomaly" ? valve : null, value: r.ai ? Math.round(r.ai.score * 1000) / 1000 : null, decided_by: "ai" };
+  try { const res = await sb.from("events").insert(row); if (res.error) console.warn("AI event not saved:", res.error.message); }
+  catch (e) { console.warn("AI event not saved:", e); }
+}
+async function liveFetch(first) {
+  if (!sb) { live.state = "error"; live.err = "supabase-js"; return; }
+  try {
+    let q = sb.from("sensor_readings").select("*");
+    q = first ? q.order("id", { ascending: false }).limit(LIVE.firstLoad) : q.gt("id", live.lastId).order("id", { ascending: true }).limit(1000);
+    const r = await q; if (r.error) throw r.error;
+    let e = sb.from("events").select("*");
+    e = first ? e.order("id", { ascending: false }).limit(60) : e.gt("id", live.lastEvId).order("id", { ascending: true }).limit(200);
+    const ev = await e; if (ev.error) throw ev.error;
+    if (first) { live.ai.lastTs = 0; }
+    addRows(r.data || []); addEvents(ev.data || []);
+    live.state = "ok"; live.err = "";
+  } catch (err) {
+    live.state = "error"; live.err = (err && (err.message || err.code)) ? String(err.message || err.code).slice(0, 80) : "network";
+  }
+}
+function liveSubscribe() {
+  if (!sb) return;
+  if (live.ch) { try { sb.removeChannel(live.ch); } catch (e) {} }
+  live.rt = false;
+  live.ch = sb.channel("ebm-dashboard")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sensor_readings" }, p => addRows([p.new]))
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "events" }, p => addEvents([p.new]))
+    .on("system", {}, p => { if (p && p.extension === "postgres_changes") live.rt = p.status === "ok"; })
+    .subscribe(s => { if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") live.rt = false; });
+}
+async function liveStart() {
+  if (live.started) return;
+  live.started = true; live.state = "loading";
+  await liveFetch(true);
+  liveSubscribe();
+  clearInterval(live.pollTimer);
+  live.pollTimer = setInterval(() => { if (mode === "live") liveFetch(false); }, LIVE.pollMs);
+  render();
+}
+
+/* ===================== Rendering ===================== */
+const $ = id => document.getElementById(id);
+function applyLang() {
+  document.documentElement.lang = lang ? "en" : "ar";
+  document.documentElement.dir = lang ? "ltr" : "rtl";
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
+  $("langBtn").textContent = t("lang");
+  $("runBtn").textContent = running ? t("run") : t("paused");
+  for (const k of ["orp", "turb", "do", "ph"]) $("ct_" + k).textContent = t(k) + (UNITS[k] ? " (" + UNITS[k] + ")" : "");
+  for (const p of PRAYERS) $("pt_" + p).value = settings.times[p];
+  $("setLogAi").value = settings.logAi ? "1" : "0";
+}
+function applyMode() {
+  document.body.dataset.mode = mode;
+  $("srcLive").setAttribute("aria-pressed", String(mode === "live"));
+  $("srcSim").setAttribute("aria-pressed", String(mode === "sim"));
+  $("simBar").hidden = mode !== "sim";
+  if (mode === "live") liveStart();
+  render();
+}
+function isoOf(m) {
+  const base = sim.startWeekday === 4 ? Date.UTC(2026, 9, 9) : Date.UTC(2026, 9, 8);
+  return new Date(base + m * 60000).toISOString().slice(0, 16).replace("T", " ");
+}
+function layout(h, extra) {
+  return Object.assign({
+    height: h, margin: { l: 44, r: 12, t: 8, b: 30 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: C.bg,
+    font: { family: "IBM Plex Sans Arabic, Tahoma, sans-serif", color: C.fg, size: 11 }, showlegend: false,
+    xaxis: { gridcolor: C.line, zeroline: false, tickformat: "%H:%M", fixedrange: true },
+    yaxis: { gridcolor: C.line, zeroline: false, fixedrange: true }, hovermode: "x unified",
+  }, extra || {});
+}
+const PCFG = { displayModeBar: false, responsive: true };
+function shadeRanges(ranges) {
+  return ranges.map(([a, b]) => ({ type: "rect", xref: "x", yref: "paper", x0: a, x1: b, y0: 0, y1: 1, fillcolor: C.bad, opacity: 0.14, line: { width: 0 } }));
+}
+function rangesOf(list, isOn, xOf, xEnd) {
+  const out = []; let s = null;
+  for (const r of list) { if (isOn(r) && s === null) s = xOf(r); if (!isOn(r) && s !== null) { out.push([s, xOf(r)]); s = null; } }
+  if (s !== null && list.length) out.push([s, xEnd]);
+  return out;
+}
+const fmtL = v => v >= 1000 ? (v / 1000).toLocaleString("en", { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + " m³" : Math.round(v).toLocaleString("en") + " L";
+const n0 = v => Math.round(v).toLocaleString("en");
+const colOf = st => ({ ok: C.ok, warn: C.warn, alarm: C.bad, na: C.muted }[st]);
+
+function setValve(id, state) {   // state: "normal" | "sewer" | null
+  const el = $(id); el.className = "valve " + (state === "sewer" ? "bad" : state === "normal" ? "ok" : "na");
+  $(id + "Txt").textContent = state === "sewer" ? t("v_sewer") : state === "normal" ? t("v_normal") : "—";
+}
+function setCards(list) {
+  $("cards").innerHTML = list.map(c => {
+    const col = colOf(c.st), val = c.v === null || c.v === undefined || Number.isNaN(c.v) ? "—" : c.v.toFixed(c.d);
+    return `<div class="card" style="--c:${col}"><div class="k">${t(c.k)}</div><span class="v num">${val}</span><span class="u">${UNITS[c.k] || ""}</span>`
+      + `<div class="s">● ${t("st_" + c.st)}</div>${c.note ? `<div class="n">${esc(c.note)}</div>` : ""}</div>`;
+  }).join("");
+}
+function sensorCharts(xs, get, shapes, limitsFor, tickformat) {
+  const sensorCol = { orp: C.bad, turb: C.warn, do: C.blue, ph: C.ok };
+  for (const k of ["orp", "turb", "do", "ph"]) {
+    const lim = (limitsFor[k] || []).filter(x => x !== null).map(y => ({ type: "line", xref: "paper", x0: 0, x1: 1, y0: y, y1: y, line: { color: C.bad, dash: "dot", width: 1 } }));
+    Plotly.react("p_" + k, [{ x: xs, y: get(k), mode: "lines", line: { color: sensorCol[k], width: 1.8 }, name: t(k), hovertemplate: "%{y:.2f}<extra></extra>", connectgaps: false }],
+      layout(185, { shapes: shapes.concat(lim), xaxis: { gridcolor: C.line, zeroline: false, tickformat, fixedrange: true } }), PCFG);
+  }
+}
+function aiCharts(xs, scores, flagX, flagY, zAbs, tickformat) {
+  Plotly.react("p_score", [
+    { x: xs, y: scores, mode: "lines", line: { color: C.blue, width: 1.8 }, fill: "tozeroy", fillcolor: "rgba(90,176,240,.12)", hovertemplate: "%{y:.3f}<extra></extra>", connectgaps: false },
+    { x: flagX, y: flagY, mode: "markers", marker: { color: C.bad, size: 6 }, hoverinfo: "skip" }],
+    layout(190, { shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 0, y1: 0, line: { color: C.bad, dash: "dash", width: 1.5 } }],
+      xaxis: { gridcolor: C.line, zeroline: false, tickformat, fixedrange: true } }), PCFG);
+  const wk = ["orp", "turb", "do", "ph"], wv = zAbs || [0, 0, 0, 0];
+  Plotly.react("p_why", [{ type: "bar", orientation: "h", x: wv, y: wk.map(k => t(k)), marker: { color: wv.map(v => v >= 4 ? C.bad : v >= 3 ? C.warn : C.ok) },
+    text: wv.map(v => v.toFixed(1) + "σ"), textposition: "outside", cliponaxis: false, hoverinfo: "skip" }],
+    layout(170, { margin: { l: 110, r: 30, t: 6, b: 24 }, hovermode: false, xaxis: { gridcolor: C.line, range: [0, Math.max(6, Math.max(...wv) * 1.25)], fixedrange: true },
+      yaxis: { autorange: "reversed", fixedrange: true } }), PCFG);
+}
+function forecastChart(fx, fy, ay, ey, pm, friday, nowx, ymaxExtra) {
+  const ymax = Math.max(...fy, ...(ay || []).filter(v => v !== null && v !== undefined), ymaxExtra || 0) * 1.15;
+  const fshapes = [], anns = [];
+  PRAYERS.forEach((p, i) => {
+    const px = pm[p];
+    fshapes.push({ type: "line", x0: px, x1: px, yref: "paper", y0: 0, y1: 1, line: { color: C.line, width: 1 } });
+    anns.push({ x: px, y: ymax * (i % 2 ? 0.9 : 1.0), text: (p === "dhuhr" && friday) ? t("jumuah") : t(p), showarrow: false, yanchor: "bottom", font: { color: C.muted, size: 11 }, bgcolor: C.bg });
+  });
+  fshapes.push({ type: "line", x0: nowx, x1: nowx, yref: "paper", y0: 0, y1: 1, line: { color: C.fg, width: 1.4, dash: "dot" } });
+  anns.push({ x: nowx, y: ymax * 0.72, text: t("now"), showarrow: false, xanchor: "left", xshift: 4, font: { color: C.fg, size: 11 } });
+  const traces = [{ x: fx, y: fy, mode: "lines", name: t("forecast"), line: { color: C.muted, width: 1.8, dash: "dash" } }];
+  if (ay) traces.push({ x: fx, y: ay, mode: "lines", name: t("actual"), line: { color: C.ok, width: 1.8 }, fill: "tozeroy", fillcolor: "rgba(61,190,139,.18)" });
+  traces.push({ x: fx, y: ey, mode: "lines", name: t("aeration"), line: { color: C.warn, width: 1.4 }, yaxis: "y2" });
+  Plotly.react("p_fc", traces,
+    layout(320, { showlegend: true, legend: { orientation: "h", y: 1.12, x: 0, bgcolor: "rgba(0,0,0,0)" }, margin: { l: 48, r: 44, t: 30, b: 30 },
+      yaxis: { gridcolor: C.line, range: [0, ymax * 1.12], title: { text: t("lpm"), font: { size: 11 } }, fixedrange: true },
+      yaxis2: { overlaying: "y", side: "right", range: [0, 112], tickvals: [0, 25, 50, 75, 100], ticksuffix: "%", showgrid: false, fixedrange: true },
+      shapes: fshapes, annotations: anns }), PCFG);
+}
+function peakPanel(pm, fc, tod, friday, aer) {
+  const [p, dt, vol] = nextPeakOf(pm, fc, tod);
+  const pname = (p === "dhuhr" && friday) ? t("jumuah") : t(p);
+  $("peakPanel").innerHTML = `<h3>${t("next_peak")}</h3><div class="big">${pname} <span class="small">${t("in_min", { m: `<span class="num">${dt}</span>` })}</span></div>
+    <div class="small">${t("fc_vol", { v: `<span class="num">${n0(vol)}</span>` })}</div>
+    <div class="small">${t("aer_now", { a: `<span class="num">${aer.toFixed(0)}</span>` })}${aer > 60 && dt <= 45 ? ` · <span style="color:${C.warn}">${t("preboost")}</span>` : ""}</div>
+    <div class="bar"><div style="width:${aer.toFixed(0)}%;background:${C.warn}"></div></div>`;
+}
+function setLog(entries) {
+  if (!entries.length) { $("log").innerHTML = `<div class="empty">${t("log_empty")}</div>`; return; }
+  const hd = `<div class="lrow hd"><span>${t("c_time")}</span><span>${t("c_event")}</span><span>${t("c_reason")}</span><span>${t("c_valve")}</span><span>${t("c_by")}</span></div>`;
+  $("log").innerHTML = hd + entries.slice(0, 40).map(e => `<div class="lrow"><span class="tm num">${esc(e.tm)}</span><span>${e.icon} ${esc(e.label)}</span>`
+    + `<span class="why">${esc(e.reason || "")}</span><span>${esc(e.valve ? t(e.valve) : "—")}</span><span><span class="tag ${e.by}">${esc(t("by_" + e.by + (mode === "sim" && e.by === "rule" ? "_sim" : "")))}</span></span></div>`).join("");
+}
+const ICONS = { boot: "▶", start: "▶", divert: "⛔", restore: "✅", recover: "✅", safe_mode: "⚠", safe_mode_end: "✅", net_offline: "📴", net_online: "📶",
+  ai_anomaly: "🧠", ai_clear: "🧠", connection_test: "🔎", chlorine: "🧪", detergent: "🫧", uv_aging: "💡", replace_uv: "🔧", sensor_fault: "🔌" };
+
+function render() { if (mode === "sim") renderSim(); else renderLive(); }
+
+function renderSim() {
+  if (!sim) newSim();
+  const h = sim.history, row = h[h.length - 1], xs = h.map(r => isoOf(r.minute));
+  $("subtitle").textContent = t("sub_sim");
+  $("clock").textContent = hhmm(sim.minute);
+  $("dayname").textContent = DAYS[lang][(sim.startWeekday + sim.day) % 7];
+  const dv = sim.diverting ? (DIAG_VALVE[sim.diagnosis] || "valve1") : null;
+  setValve("v1", dv === "valve1" || dv === "both" ? "sewer" : "normal");
+  setValve("v2", dv === "valve2" || dv === "both" ? "sewer" : "normal");
+  $("safe").hidden = sim.diagnosis !== "sensor";
+  $("alert").hidden = !(sim.diverting && sim.diagnosis);
+  $("alertT").textContent = sim.diagnosis === "sensor" ? t("alert_safe") : t("alert_rule");
+  if (sim.diagnosis) $("alertTxt").textContent = t("dg_" + sim.diagnosis);
+  $("aiAlert").hidden = true; $("connBar").hidden = true;
+
+  const statusOf = k => {
+    if (k === "cl") return row.cl < 0.2 || row.cl > 0.5 ? "alarm" : "ok";
+    if (k === "temp") return "ok";
+    if (LIMITS[k]) { const [lo, hi] = LIMITS[k]; if ((lo !== null && row[k] < lo) || (hi !== null && row[k] > hi)) return "alarm"; }
+    if (k === "level") return row[k] < 10 || row[k] > 97 ? "warn" : "ok";
+    if (k === "uv") return row[k] < 80 ? "warn" : "ok";
+    return Math.abs(row["z_" + k]) >= 3 ? "warn" : "ok";
+  };
+  const fmt = { ph: 2, orp: 0, do: 1, temp: 1, turb: 1, uv: 1, cl: 2, level: 0 };
+  setCards(Object.keys(fmt).map(k => ({ k, v: row[k], d: fmt[k], st: statusOf(k) })));
+
+  $("sensorsTitle").textContent = t("sensors_sim");
+  const shapes = shadeRanges(rangesOf(h, r => r.diverting, r => isoOf(r.minute), isoOf(h[h.length - 1].minute + 1)));
+  sensorCharts(xs, k => h.map(r => r[k]), shapes, LIMITS, "%H:%M");
+  const fl = h.filter(r => r.flag);
+  aiCharts(xs, h.map(r => r.score), fl.map(r => isoOf(r.minute)), fl.map(r => r.score), ["orp", "turb", "do", "ph"].map(k => Math.abs(row["z_" + k])), "%H:%M");
+  $("normalNote").textContent = sim.diverting ? "" : t("normal_state");
+
+  const m0 = sim.day * 1440, fx = [], fy = [], ay = [], ey = [];
+  for (let i = 0; i < 1440; i += 2) { fx.push(isoOf(m0 + i)); fy.push(sim.fc[i]); ay.push(sim.actual[i] ?? sim.actual[i + 1]); ey.push(sim.aerDay[i]); }
+  const pmx = {}; for (const p of PRAYERS) pmx[p] = isoOf(m0 + sim.pm[p]);
+  forecastChart(fx, fy, ay, ey, pmx, sim.friday, isoOf(sim.minute));
+
+  peakPanel(sim.pm, sim.fc, sim.tod, sim.friday, row.aer);
+  $("energyPanel").innerHTML = `<h3>${t("energy")}</h3><div class="big" style="color:${C.ok}"><span class="num">≈ ${sim.energySaved.toFixed(0)}%</span></div><div class="small">${t("energy_sub")}</div>`;
+  const days = sim.uvDaysLeft(); let msg, col;
+  if (days <= 0) { msg = t("uv_now"); col = C.bad; }
+  else { msg = t("uv_left", { x: `<span class="num">${days >= 2 ? t("days", { n: n0(days) }) : t("hours", { n: (days * 24).toFixed(1) })}</span>` }); col = days < 30 ? C.warn : C.ok; }
+  const uvp = clip(sim.uv, 0, 100);
+  $("maintPanel").innerHTML = `<h3>${t("maint")}</h3><div class="big" style="color:${col};font-size:1.1rem">${msg}</div>
+    <div class="small">${t("uv")}: <span class="num">${uvp.toFixed(1)}%</span> · ${t("safe_limit")} <span class="num">70%</span></div>
+    <div class="bar"><div style="width:${uvp.toFixed(0)}%;background:${col}"></div></div>`;
+
+  $("impactTitle").textContent = t("water_title");
+  $("impact").innerHTML = `<div class="card" style="--c:${C.ok}"><div class="k">${t("reused")}</div><span class="v num">${fmtL(sim.reused)}</span></div>
+    <div class="card" style="--c:${C.bad}"><div class="k">${t("unsafe")}</div><span class="v num">${fmtL(sim.diverted)}</span></div>
+    <div class="card" style="--c:${C.blue}"><div class="k">${t("month")}</div><span class="v num">≈ ${n0(monthlyCache)} m³</span></div>`;
+
+  setLog(sim.events.map(e => {
+    const scen = ["chlorine", "detergent", "uv_aging", "replace_uv", "sensor_fault"].includes(e.kind);
+    const reason = e.kind === "divert" ? t("dg_" + e.detail) : e.kind === "recover" ? t("ev_recover") : t("ev_" + e.kind);
+    return { tm: hhmm(e.minute), icon: ICONS[e.kind] || "•", label: scen ? t("e_scenario") : t("e_" + e.kind), reason,
+      valve: e.kind === "divert" || e.kind === "recover" ? (DIAG_VALVE[e.detail] || "valve1") : null, by: e.by || "sys" };
+  }));
+  $("disclaimer").textContent = t("disc_sim");
+}
+
+let fcCache = { key: "", fc: null, ref: 1, aer: null };
+function liveForecast(now) {
+  const friday = now.getDay() === 5, key = now.toDateString() + JSON.stringify(settings.times) + JSON.stringify(settings.cfg);
+  if (fcCache.key !== key) {
+    const pm = {}; for (const p of PRAYERS) pm[p] = toMin(settings.times[p]);
+    const fc = forecastDay(pm, settings.cfg, friday), ref = peakRef(fc), aer = new Array(1440);
+    for (let i = 0; i < 1440; i++) aer[i] = aerationPlan(fc, ref, i);
+    fcCache = { key, fc, ref, aer, pm, friday };
+  }
+  return fcCache;
+}
+function renderLive() {
+  const now = new Date(), rows = live.rows, last = rows[rows.length - 1] || null;
+  $("subtitle").textContent = t("sub_live");
+  $("clock").textContent = hms(now);
+  $("dayname").textContent = DAYS[lang][dayIdx(now)];
+
+  // connection status
+  const age = last ? (now - last.t) / 1000 : null, conn = $("conn");
+  let cls = "ok", txt;
+  if (live.state === "loading") { cls = ""; txt = t("conn_loading"); }
+  else if (live.state === "error") { cls = "bad"; txt = t("conn_err"); }
+  else if (!last) { cls = "warn"; txt = t("conn_wait"); }
+  else if (age > LIVE.staleSec) { cls = "warn"; txt = t("conn_stale", { s: agoText(age) }); }
+  else txt = t("conn_ok", { s: agoText(age) });
+  if (live.state === "ok") txt += " · " + (live.rt ? t("rt_on") : t("rt_off"));
+  conn.className = "conn liveOnly " + cls; conn.textContent = txt;
+  const showErr = live.state === "error", showStale = live.state === "ok" && last && age > LIVE.staleSec;
+  $("connBar").hidden = !(showErr || showStale);
+  if (showErr) { $("connBarT").textContent = t("err_t"); $("connBarTxt").textContent = t("err_txt", { e: /fetch|network/i.test(live.err) ? t("net_word") : live.err }); }
+  else if (showStale) { $("connBarT").textContent = t("stale_t"); $("connBarTxt").textContent = t("stale_txt", { s: agoText(age) }); }
+
+  // valves + alerts (the ESP32 decides; we show what it reported)
+  setValve("v1", last ? last.valve1 : null); setValve("v2", last ? last.valve2 : null);
+  $("safe").hidden = !(last && last.safe_mode);
+  if (last && (last.safe_mode || last.sewer)) {
+    $("alert").hidden = false;
+    $("alertT").textContent = last.safe_mode ? t("alert_safe") : t("alert_rule");
+    const why = [];
+    const lastOf = (type, v) => live.events.find(e => e.type === type && e.decided_by === "rule" && (!v || e.valve === v || e.valve === "both"));
+    if (last.safe_mode) { const e = lastOf("safe_mode"); if (e) why.push(e.reason); }
+    else { for (const v of ["valve1", "valve2"]) if (last[v] === "sewer") { const e = lastOf("divert", v); why.push(e ? `${t(v)}: ${e.reason}` : `${t(v)}: ${t("v_sewer")}`); } }
+    $("alertTxt").textContent = why.join(" · ");
+  } else $("alert").hidden = true;
+  const st = live.ai;
+  $("aiAlert").hidden = !st.active;
+  if (st.active) $("aiAlertTxt").textContent = t("ai_alert_txt", { d: t("dg_" + (st.diag || "pattern")), v: t(DIAG_VALVE[st.diag] || "valve1") });
+
+  // cards
+  const z = last && last.ai ? last.ai.z : null;
+  const stOf = (k, v) => {
+    if (v === null || v === undefined) return "na";
+    const L = LIVE_LIMITS[k]; if (L) { const [lo, hi] = L; if ((lo !== null && v < lo) || (hi !== null && v > hi)) return "alarm"; }
+    if (k === "uv") return v < 80 ? "warn" : "ok";
+    const zi = { ph: 0, turb: 1, do: 2, orp: 3 }[k];
+    if (zi !== undefined && z && Math.abs(z[zi]) >= 3) return "warn";
+    return "ok";
+  };
+  const cardDef = [["ph", "ph", 2], ["orp", "orp_in_mv", 0], ["do", "do_mgl", 1], ["temp", "temp_c", 1], ["turb", "turbidity", 1], ["uv", "uv_pct", 1], ["cl", "cl", 2], ["level", "level_pct", 0]];
+  setCards(cardDef.map(([k, f, d]) => { const v = last ? last[f] : null; return { k, v, d, st: stOf(k, v), note: k === "cl" ? t("cl_note") : "" }; }));
+
+  // charts: last LIVE.windowSec seconds of data (relative to the newest reading, so old data still shows when Wokwi is stopped)
+  const tEnd = last ? last.t.getTime() : now.getTime(), win = rows.filter(r => r.t.getTime() > tEnd - LIVE.windowSec * 1000);
+  const xs = win.map(r => localStr(r.t)), xEnd = last ? localStr(new Date(tEnd + 1000)) : localStr(now);
+  $("sensorsTitle").textContent = t("sensors_live");
+  const fld = { orp: "orp_in_mv", turb: "turbidity", do: "do_mgl", ph: "ph" };
+  sensorCharts(xs, k => win.map(r => r[fld[k]]), shadeRanges(rangesOf(win, r => r.sewer, r => localStr(r.t), xEnd)), { ph: LIVE_LIMITS.ph, turb: LIVE_LIMITS.turb }, "%H:%M:%S");
+  const fl = win.filter(r => r.ai && r.ai.flag);
+  aiCharts(xs, win.map(r => r.ai ? r.ai.score : null), fl.map(r => localStr(r.t)), fl.map(r => r.ai.score),
+    z ? [z[3], z[1], z[2], z[0]].map(Math.abs) : null, "%H:%M:%S");
+  $("normalNote").textContent = !last ? "" : !last.ai ? t("ai_na") : st.active ? "" : t("ai_normal");
+
+  // forecast for today's real date and time
+  const F = liveForecast(now), tod = now.getHours() * 60 + now.getMinutes();
+  const day0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} `, fx = [], fy = [], ey = [];
+  for (let i = 0; i < 1440; i += 2) { fx.push(day0 + hhmm(i)); fy.push(F.fc[i]); ey.push(F.aer[i]); }
+  const pmx = {}; for (const p of PRAYERS) pmx[p] = day0 + hhmm(F.pm[p]);
+  forecastChart(fx, fy, null, ey, pmx, F.friday, day0 + hhmm(tod));
+  peakPanel(F.pm, F.fc, tod, F.friday, F.aer[tod]);
+
+  // pumps (from the ESP32) and UV
+  const onoff = v => v === true ? `<span style="color:${C.ok}">${t("on")}</span>` : v === false ? `<span style="color:${C.muted}">${t("off")}</span>` : "—";
+  $("energyPanel").innerHTML = `<h3>${t("pumps")}</h3><div class="big" style="font-size:1.1rem">${t("air_pump")}: ${onoff(last ? last.air_pump : null)} · ${t("cl_pump")}: ${onoff(last ? last.cl_pump : null)}</div>
+    <div class="small">${t("cl_pump_note")}</div>`;
+  const uv = last ? last.uv_pct : null, uvCol = uv === null ? C.muted : uv < 70 ? C.bad : uv < 80 ? C.warn : C.ok;
+  $("maintPanel").innerHTML = `<h3>${t("maint")}</h3><div class="big" style="color:${uvCol};font-size:1.1rem">${uv === null ? "—" : uv < 70 ? t("uv_now") : t("uv_live_ok")}</div>
+    <div class="small">${t("uv")}: <span class="num">${uv === null ? "—" : uv.toFixed(1) + "%"}</span> · ${t("safe_limit")} <span class="num">70%</span></div>
+    <div class="bar"><div style="width:${uv === null ? 0 : clip(uv, 0, 100).toFixed(0)}%;background:${uvCol}"></div></div><div class="small">${t("uv_live_pred")}</div>`;
+
+  // live data summary (last hour)
+  const hour = rows.filter(r => r.t.getTime() > now.getTime() - 3600e3);
+  let sewerSec = 0; for (let i = 0; i < hour.length; i++) if (hour[i].sewer) sewerSec += i + 1 < hour.length ? Math.min(60, (hour[i + 1].t - hour[i].t) / 1000) : 1;
+  $("impactTitle").textContent = t("live_title");
+  $("impact").innerHTML = `<div class="card" style="--c:${C.blue}"><div class="k">${t("rx_hour")}</div><span class="v num">${n0(hour.length)}</span></div>
+    <div class="card" style="--c:${sewerSec ? C.bad : C.ok}"><div class="k">${t("sewer_hour")}</div><span class="v num">${sewerSec >= 90 ? (sewerSec / 60).toFixed(1) + " min" : Math.round(sewerSec) + " s"}</span></div>
+    <div class="card" style="--c:${age !== null && age <= LIVE.staleSec ? C.ok : C.warn}"><div class="k">${t("last_rx")}</div><span class="v num">${last ? hms(last.t) : "—"}</span></div>`;
+
+  setLog(live.events.map(e => ({ tm: hms(e.t), icon: ICONS[e.type] || "•", label: TXT["e_" + e.type] ? t("e_" + e.type) : e.type,
+    reason: e.reason, valve: ["valve1", "valve2", "both"].includes(e.valve) ? e.valve : null, by: e.decided_by === "ai" ? "ai" : "rule" })));
+  $("disclaimer").textContent = t("disc_live");
+}
+
+function loop() { if (mode === "sim" && running) sim.run(speed); render(); }
+function start() { clearInterval(timer); timer = setInterval(loop, 1000); }
+
+/* ===================== Controls ===================== */
+$("srcLive").addEventListener("click", () => { mode = "live"; applyMode(); });
+$("srcSim").addEventListener("click", () => { mode = "sim"; applyMode(); });
+$("toSim").addEventListener("click", () => { mode = "sim"; applyMode(); });
+$("backLive").addEventListener("click", () => { mode = "live"; applyMode(); });
+$("runBtn").addEventListener("click", () => { running = !running; $("runBtn").textContent = running ? t("run") : t("paused"); $("runBtn").classList.toggle("on", running); });
+$("speed").addEventListener("change", e => speed = +e.target.value);
+document.querySelectorAll("[data-sc]").forEach(b => b.addEventListener("click", () => { sim.trigger(b.dataset.sc); render(); }));
+$("langBtn").addEventListener("click", () => { lang = 1 - lang; try { localStorage.setItem("ebm-lang", lang ? "en" : "ar"); } catch (e) {} applyLang(); render(); });
+$("applyBtn").addEventListener("click", () => {
+  try {
+    const times = {}; for (const p of PRAYERS) { times[p] = $("pt_" + p).value.trim(); toMin(times[p]); }
+    const st = $("setStart").value.trim(); toMin(st);
+    settings = { times, cfg: { worshippers: clip(+$("setW").value || 150, 20, 2000), lpa: clip(+$("setL").value || 3.5, 1, 10) }, start: st,
+      friday: $("setFri").value === "1", logAi: $("setLogAi").value === "1" };
+    $("setErr").textContent = ""; newSim(); render();
+  } catch (e) { $("setErr").textContent = t("bad_time"); }
+});
+
+newSim(); applyLang(); applyMode(); start();
+</script>

@@ -1,0 +1,1123 @@
+{
+  "version": 1,
+  "author": "EcoBio-Matrix team",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "title",
+      "top": -455,
+      "left": -505,
+      "attrs": {
+        "text": "EcoBio-Matrix · ESP32 · Wokwi"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_ph",
+      "top": -354,
+      "left": -478,
+      "attrs": {
+        "text": "pH (الموازنة) · GPIO36"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_ph",
+      "top": -330,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "548"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_orp1",
+      "top": -204,
+      "left": -478,
+      "attrs": {
+        "text": "ORP1 (الموازنة) · GPIO39"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_orp1",
+      "top": -180,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "604"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_do",
+      "top": -54,
+      "left": -478,
+      "attrs": {
+        "text": "DO الأكسجين بالمفاعل · GPIO34"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_do",
+      "top": -30,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "194"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_turb",
+      "top": 96,
+      "left": -478,
+      "attrs": {
+        "text": "العكارة قبل الأشعة · GPIO35"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_turb",
+      "top": 120,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "102"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_uv",
+      "top": 246,
+      "left": -478,
+      "attrs": {
+        "text": "UV شدة الأشعة · GPIO32"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_uv",
+      "top": 270,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "870"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_pot_orp2",
+      "top": 396,
+      "left": -478,
+      "attrs": {
+        "text": "ORP2 (بعد الكلور) · GPIO33"
+      }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot_orp2",
+      "top": 420,
+      "left": -480,
+      "attrs": {
+        "travelLength": "30",
+        "value": "512"
+      }
+    },
+    {
+      "type": "wokwi-ds18b20",
+      "id": "temp",
+      "top": 645,
+      "left": -470,
+      "attrs": {
+        "temperature": "25"
+      },
+      "rotate": 180
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_temp",
+      "top": 703,
+      "left": -480,
+      "attrs": {
+        "text": "DS18B20 الحرارة · GPIO25"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pull",
+      "top": 594.35,
+      "left": -420,
+      "attrs": {
+        "value": "4700"
+      }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "level",
+      "top": 690,
+      "left": -360,
+      "attrs": {
+        "distance": "80"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_level",
+      "top": 640,
+      "left": -360,
+      "attrs": {
+        "text": "HC-SR04 مستوى التخزين\nTRIG GPIO26 · ECHO GPIO27"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_rl_v1",
+      "top": -195.4,
+      "left": 420,
+      "attrs": {
+        "text": "GPIO21 · صمام 1 (سليم؟)"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "rl_v1",
+      "top": -117.4,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_rl_v2",
+      "top": -20.4,
+      "left": 420,
+      "attrs": {
+        "text": "GPIO19 · صمام 2 (مطابق؟)"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "rl_v2",
+      "top": 57.6,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_rl_air",
+      "top": 154.6,
+      "left": 420,
+      "attrs": {
+        "text": "GPIO18 · مضخة الهواء"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "rl_air",
+      "top": 232.6,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t_rl_cl",
+      "top": 329.6,
+      "left": 420,
+      "attrs": {
+        "text": "GPIO17 · مضخة الكلور"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "rl_cl",
+      "top": 407.6,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rr_rl_v1",
+      "top": -111.05,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lr_rl_v1",
+      "top": -157.4,
+      "left": 650,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rg_rl_v1",
+      "top": -23.05,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lg_rl_v1",
+      "top": -77.4,
+      "left": 650,
+      "attrs": {
+        "color": "limegreen"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rr_rl_v2",
+      "top": 63.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lr_rl_v2",
+      "top": 17.6,
+      "left": 650,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rg_rl_v2",
+      "top": 151.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lg_rl_v2",
+      "top": 97.6,
+      "left": 650,
+      "attrs": {
+        "color": "limegreen"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rr_rl_air",
+      "top": 238.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lr_rl_air",
+      "top": 192.6,
+      "left": 650,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rg_rl_air",
+      "top": 326.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lg_rl_air",
+      "top": 272.6,
+      "left": 650,
+      "attrs": {
+        "color": "limegreen"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rr_rl_cl",
+      "top": 413.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lr_rl_cl",
+      "top": 367.6,
+      "left": 650,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rg_rl_cl",
+      "top": 501.95,
+      "left": 576,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "lg_rl_cl",
+      "top": 447.6,
+      "left": 650,
+      "attrs": {
+        "color": "limegreen"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_fault",
+      "top": -330,
+      "left": 200,
+      "attrs": {
+        "color": "red",
+        "label": "عطل حساس (F) GPIO23",
+        "key": "f",
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_net",
+      "top": -330,
+      "left": 300,
+      "attrs": {
+        "color": "blue",
+        "label": "قطع الإنترنت (N) GPIO22",
+        "key": "n",
+        "bounce": "0"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "pot_ph:SIG",
+      "esp:VP",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h370",
+        "v260"
+      ]
+    ],
+    [
+      "pot_ph:VCC",
+      "pot_orp1:VCC",
+      "red",
+      [
+        "h-26",
+        "v150"
+      ]
+    ],
+    [
+      "pot_ph:GND",
+      "pot_orp1:GND",
+      "black",
+      [
+        "h23",
+        "v150"
+      ]
+    ],
+    [
+      "pot_orp1:SIG",
+      "esp:VN",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h358",
+        "v119.6"
+      ]
+    ],
+    [
+      "pot_orp1:VCC",
+      "pot_do:VCC",
+      "red",
+      [
+        "h-26",
+        "v150"
+      ]
+    ],
+    [
+      "pot_orp1:GND",
+      "pot_do:GND",
+      "black",
+      [
+        "h23",
+        "v150"
+      ]
+    ],
+    [
+      "pot_do:SIG",
+      "esp:34",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h384",
+        "v-20.8"
+      ]
+    ],
+    [
+      "pot_do:VCC",
+      "pot_turb:VCC",
+      "red",
+      [
+        "h-26",
+        "v150"
+      ]
+    ],
+    [
+      "pot_do:GND",
+      "pot_turb:GND",
+      "black",
+      [
+        "h23",
+        "v150"
+      ]
+    ],
+    [
+      "pot_turb:SIG",
+      "esp:35",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h396",
+        "v-161.2"
+      ]
+    ],
+    [
+      "pot_turb:VCC",
+      "pot_uv:VCC",
+      "red",
+      [
+        "h-26",
+        "v150"
+      ]
+    ],
+    [
+      "pot_turb:GND",
+      "pot_uv:GND",
+      "black",
+      [
+        "h23",
+        "v150"
+      ]
+    ],
+    [
+      "pot_uv:SIG",
+      "esp:32",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h408",
+        "v-301.6"
+      ]
+    ],
+    [
+      "pot_uv:VCC",
+      "pot_orp2:VCC",
+      "red",
+      [
+        "h-26",
+        "v150"
+      ]
+    ],
+    [
+      "pot_uv:GND",
+      "pot_orp2:GND",
+      "black",
+      [
+        "h23",
+        "v150"
+      ]
+    ],
+    [
+      "pot_orp2:SIG",
+      "esp:33",
+      "green",
+      [
+        "h-13",
+        "v55",
+        "h420",
+        "v-442"
+      ]
+    ],
+    [
+      "pot_ph:VCC",
+      "esp:3V3",
+      "red",
+      [
+        "h-26",
+        "v-88",
+        "h475",
+        "v403.8"
+      ]
+    ],
+    [
+      "pot_ph:GND",
+      "esp:GND.2",
+      "black",
+      [
+        "h23",
+        "v-108",
+        "h370",
+        "v423.8"
+      ]
+    ],
+    [
+      "pot_orp2:VCC",
+      "r_pull:1",
+      "red",
+      [
+        "h-26",
+        "v137"
+      ]
+    ],
+    [
+      "temp:VCC",
+      "r_pull:1",
+      "red",
+      [
+        "v-46.47"
+      ]
+    ],
+    [
+      "esp:25",
+      "temp:DQ",
+      "orange",
+      [
+        "h-64.61",
+        "v514.4",
+        "h-392.72"
+      ]
+    ],
+    [
+      "r_pull:2",
+      "temp:DQ",
+      "orange",
+      [
+        "h11.2",
+        "v20",
+        "h-102.72"
+      ]
+    ],
+    [
+      "pot_orp2:GND",
+      "temp:GND",
+      "black",
+      [
+        "h23",
+        "v172",
+        "h-193.12"
+      ]
+    ],
+    [
+      "level:GND",
+      "temp:GND",
+      "black",
+      [
+        "v7.5",
+        "h88.7",
+        "v-157",
+        "h-273.12"
+      ]
+    ],
+    [
+      "esp:26",
+      "level:TRIG",
+      "blue",
+      [
+        "h-52.61",
+        "v684.8",
+        "h-230.7"
+      ]
+    ],
+    [
+      "esp:27",
+      "level:ECHO",
+      "purple",
+      [
+        "h-40.61",
+        "v687.2",
+        "h-232.7"
+      ]
+    ],
+    [
+      "esp:5V",
+      "level:VCC",
+      "red",
+      [
+        "h-16.61",
+        "v622.4",
+        "h-276.7"
+      ]
+    ],
+    [
+      "esp:21",
+      "rl_v1:IN",
+      "blue",
+      [
+        "h55.24",
+        "v-155.8"
+      ]
+    ],
+    [
+      "rl_v1:NC",
+      "rr_rl_v1:1",
+      "darkorange",
+      [
+        "h22",
+        "v-8.2"
+      ]
+    ],
+    [
+      "rr_rl_v1:2",
+      "lr_rl_v1:A",
+      "darkorange",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_v1:NO",
+      "rg_rl_v1:1",
+      "limegreen",
+      [
+        "h22",
+        "v60"
+      ]
+    ],
+    [
+      "rg_rl_v1:2",
+      "lg_rl_v1:A",
+      "limegreen",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_v1:COM",
+      "rl_v1:VCC",
+      "red",
+      [
+        "h30",
+        "v-44",
+        "h-150",
+        "v33"
+      ]
+    ],
+    [
+      "lr_rl_v1:C",
+      "rl_v1:GND",
+      "black",
+      [
+        "v4",
+        "h-21",
+        "v-56",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "lg_rl_v1:C",
+      "rl_v2:GND",
+      "black",
+      [
+        "v11",
+        "h-21",
+        "v32",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "rl_v1:COM",
+      "rl_v2:COM",
+      "red",
+      [
+        "h266",
+        "v175"
+      ]
+    ],
+    [
+      "rl_v1:GND",
+      "rl_v2:GND",
+      "black",
+      [
+        "h-12",
+        "v175"
+      ]
+    ],
+    [
+      "esp:19",
+      "rl_v2:IN",
+      "blue",
+      []
+    ],
+    [
+      "rl_v2:NC",
+      "rr_rl_v2:1",
+      "darkorange",
+      [
+        "h22",
+        "v-8.2"
+      ]
+    ],
+    [
+      "rr_rl_v2:2",
+      "lr_rl_v2:A",
+      "darkorange",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_v2:NO",
+      "rg_rl_v2:1",
+      "limegreen",
+      [
+        "h22",
+        "v60"
+      ]
+    ],
+    [
+      "rg_rl_v2:2",
+      "lg_rl_v2:A",
+      "limegreen",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_v2:COM",
+      "rl_v2:VCC",
+      "red",
+      [
+        "h30",
+        "v-44",
+        "h-150",
+        "v33"
+      ]
+    ],
+    [
+      "lr_rl_v2:C",
+      "rl_v2:GND",
+      "black",
+      [
+        "v4",
+        "h-21",
+        "v-56",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "lg_rl_v2:C",
+      "rl_air:GND",
+      "black",
+      [
+        "v11",
+        "h-21",
+        "v32",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "rl_v2:COM",
+      "rl_air:COM",
+      "red",
+      [
+        "h266",
+        "v175"
+      ]
+    ],
+    [
+      "rl_v2:GND",
+      "rl_air:GND",
+      "black",
+      [
+        "h-12",
+        "v175"
+      ]
+    ],
+    [
+      "esp:18",
+      "rl_air:IN",
+      "blue",
+      [
+        "h81.24",
+        "v165.4"
+      ]
+    ],
+    [
+      "rl_air:NC",
+      "rr_rl_air:1",
+      "darkorange",
+      [
+        "h22",
+        "v-8.2"
+      ]
+    ],
+    [
+      "rr_rl_air:2",
+      "lr_rl_air:A",
+      "darkorange",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_air:NO",
+      "rg_rl_air:1",
+      "limegreen",
+      [
+        "h22",
+        "v60"
+      ]
+    ],
+    [
+      "rg_rl_air:2",
+      "lg_rl_air:A",
+      "limegreen",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_air:COM",
+      "rl_air:VCC",
+      "red",
+      [
+        "h30",
+        "v-44",
+        "h-150",
+        "v33"
+      ]
+    ],
+    [
+      "lr_rl_air:C",
+      "rl_air:GND",
+      "black",
+      [
+        "v4",
+        "h-21",
+        "v-56",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "lg_rl_air:C",
+      "rl_cl:GND",
+      "black",
+      [
+        "v11",
+        "h-21",
+        "v32",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "rl_air:COM",
+      "rl_cl:COM",
+      "red",
+      [
+        "h266",
+        "v175"
+      ]
+    ],
+    [
+      "rl_air:GND",
+      "rl_cl:GND",
+      "black",
+      [
+        "h-12",
+        "v175"
+      ]
+    ],
+    [
+      "esp:17",
+      "rl_cl:IN",
+      "blue",
+      [
+        "h69.24",
+        "v321.2"
+      ]
+    ],
+    [
+      "rl_cl:NC",
+      "rr_rl_cl:1",
+      "darkorange",
+      [
+        "h22",
+        "v-8.2"
+      ]
+    ],
+    [
+      "rr_rl_cl:2",
+      "lr_rl_cl:A",
+      "darkorange",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_cl:NO",
+      "rg_rl_cl:1",
+      "limegreen",
+      [
+        "h22",
+        "v60"
+      ]
+    ],
+    [
+      "rg_rl_cl:2",
+      "lg_rl_cl:A",
+      "limegreen",
+      [
+        "h40.2"
+      ]
+    ],
+    [
+      "rl_cl:COM",
+      "rl_cl:VCC",
+      "red",
+      [
+        "h30",
+        "v-44",
+        "h-150",
+        "v33"
+      ]
+    ],
+    [
+      "lr_rl_cl:C",
+      "rl_cl:GND",
+      "black",
+      [
+        "v4",
+        "h-21",
+        "v-56",
+        "h-236",
+        "v79"
+      ]
+    ],
+    [
+      "lg_rl_cl:C",
+      "rl_cl:GND",
+      "black",
+      [
+        "v11",
+        "h-21",
+        "v32",
+        "h-236",
+        "v-96"
+      ]
+    ],
+    [
+      "esp:5V",
+      "rl_cl:COM",
+      "red",
+      [
+        "h-16.61",
+        "v648.4",
+        "h812",
+        "v-412.4"
+      ]
+    ],
+    [
+      "esp:23",
+      "btn_fault:1.l",
+      "gold",
+      [
+        "h31.24",
+        "v-355.4"
+      ]
+    ],
+    [
+      "esp:22",
+      "btn_net:1.l",
+      "gold",
+      [
+        "h43.24",
+        "v-283",
+        "h144",
+        "v-82"
+      ]
+    ],
+    [
+      "esp:GND.2",
+      "btn_fault:2.r",
+      "black",
+      [
+        "h19.24",
+        "v-373.8",
+        "h160",
+        "v47"
+      ]
+    ],
+    [
+      "btn_fault:2.r",
+      "btn_net:2.r",
+      "black",
+      [
+        "h13",
+        "v-47",
+        "h100",
+        "v47"
+      ]
+    ],
+    [
+      "btn_net:2.r",
+      "rl_v1:GND",
+      "black",
+      [
+        "h13",
+        "v130.6",
+        "h28",
+        "v79"
+      ]
+    ]
+  ],
+  "dependencies": {}
+}
